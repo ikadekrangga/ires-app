@@ -1,0 +1,51 @@
+services:
+  # 1. Database PostgreSQL
+  db_indosat:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_DB: iresDB
+      POSTGRES_USER: iresADMIN
+      POSTGRES_PASSWORD: ires123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Menggunakan named volume agar lebih rapi
+    networks:
+      - indosat_network
+
+  # 2. pgAdmin (Dashboard Visual)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_indosat
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: rangga@indosat.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - db_indosat
+    networks:
+      - indosat_network
+
+  # 3. Python Scrapper
+  python_app:
+    build:
+      context: ./python_scrapper
+    container_name: python_scrapper
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db_indosat
+    networks:
+      - indosat_network
+
+networks:
+  indosat_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

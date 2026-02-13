@@ -1,0 +1,44 @@
+# ======================
+# ENV
+# ======================
+.env
+.env.*
+
+# ======================
+# Laravel
+# ======================
+laravel_backend/vendor/
+laravel_backend/node_modules/
+laravel_backend/storage/*.key
+laravel_backend/public/storage
+
+# ======================
+# Vue
+# ======================
+vue_frontend/node_modules/
+vue_frontend/dist/
+
+# ======================
+# Python
+# ======================
+python_scrapper/venv/
+python_scrapper/__pycache__/
+__pycache__/
+*.py[cod]
+
+# ======================
+# Logs
+# ======================
+*.log
+
+# ======================
+# IDE
+# ======================
+.vscode/
+.idea/
+
+# ======================
+# OS
+# ======================
+.DS_Store
+Thumbs.db

@@ -1,0 +1,18 @@
+# 1. Gunakan versi Python yang stabil dan ringan
+FROM python:3.11-slim
+
+# 2. Set folder kerja di dalam container (seperti 'cd /app')
+WORKDIR /app
+
+# 3. Copy file requirements.txt dulu ke dalam container
+COPY requirements.txt .
+
+# 4. Install semua library yang ada di daftar requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 5. Copy seluruh isi folder python_scrapper kamu ke dalam container
+COPY . .
+
+# 6. Perintah untuk menyalakan Uvicorn (Sesuaikan app.main:app dengan file kamu)
+# Karena tadi kamu pakai 'app.main:app', maka perintahnya begini:
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
