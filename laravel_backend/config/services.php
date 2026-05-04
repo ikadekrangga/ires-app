@@ -34,5 +34,11 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'meta' => [
+    'client_id' => env('META_APP_ID'),
+    'client_secret' => env('META_APP_SECRET'),  
+    ],
+
+    'internal_api_key' => env('INTERNAL_API_KEY'),
 
 ];

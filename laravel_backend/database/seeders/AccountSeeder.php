@@ -13,7 +13,7 @@ class AccountSeeder extends Seeder
         $accounts = [
             [
                 'account_name' => 'Gooreliea',
-                'fb_pageId' => '12345678',
+                'facebook_page_id' => '12345678',
                 'access_token' => 'EEABASBCASDSADSAD',
             ],
         ];
@@ -21,7 +21,7 @@ class AccountSeeder extends Seeder
         foreach ($accounts as $data) {
             // updateOrCreate mencegah data double jika seeder dijalankan ulang
             Account::updateOrCreate(
-                ['fb_pageId' => $data['fb_pageId']], 
+                ['facebook_page_id' => $data['facebook_page_id']], 
                 $data
             );
         }

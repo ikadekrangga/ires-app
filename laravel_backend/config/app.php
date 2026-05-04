@@ -123,4 +123,6 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
-];
+    'INTERNAL_API_KEY' => env('INTERNAL_API_KEY'),
+
+];  

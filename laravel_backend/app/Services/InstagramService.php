@@ -7,13 +7,13 @@ use Illuminate\Support\Facades\Log;
 
 class InstagramService
 {
-    public function scrapeFromPython($fbPageId, $access_token){
+    public function scrapeFromPython($facebook_page_id, $access_token){
 
-        $url = "http://localhost:8000/scrape";
+        $url = "http://python_app:8000";
 
         try {
             $response = Http::timeout(60)->post($url, [
-                'fb_pageId' => $fbPageId,
+                'facebook_page_id' => $facebook_page_id,
                 'access_token' => $access_token
             ]);
 

@@ -3,12 +3,12 @@ import json
 
 # URL API Laravel kamu
 # Pastikan port-nya sesuai (biasanya 8000)
-URL = "http://127.0.0.1:9000/api/insights/store"
+url = "http://0.0.0.0:9000/api/insights/store"
 
 # Data pura-pura (Dummy) yang mau dikirim
 payload = {
     # ID ini HARUS sama dengan yang ada di database (yang kita buat di Tinker tadi)
-    "ig_pageId": "IG_TEST_001", 
+    "instagram_business_id": "IG_TEST_001", 
     
     # Data metrics sesuai struktur controller kamu
     "metrics": {
@@ -35,7 +35,7 @@ try:
         print("Respon Server:", response.json())
     elif response.status_code == 404:
         print("❌ GAGAL: Akun tidak ditemukan.")
-        print("Pastikan 'ig_pageId' di payload sama dengan di database.")
+        print("Pastikan 'ig_page_id' di payload sama dengan di database.")
     else:
         print(f"⚠️ ERROR: Status Code {response.status_code}")
         print("Respon:", response.text)

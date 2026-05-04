@@ -14,10 +14,11 @@ return new class extends Migration
         Schema::create(table:'accounts', callback: function(Blueprint $table) :void {
             $table->id();
             $table->string("account_name");
-            $table-> string('fb_pageId');
-            $table-> string("ig_pageId")->nullable();
+            $table->string('facebook_page_id')->nullable()->index();
+            $table-> string("instagram_business_id")->nullable() ->unique();
             $table -> text('access_token')-> nullable();
-            $table -> timestamp('token_expires_at') -> nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamp('token_expires_at')->nullable();
             $table -> timestamps();
         });
     }
