@@ -54,7 +54,7 @@ class AuthController extends Controller
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['Kredensial yang diberikan tidak cocok dengan catatan kami.'],
+                'email' => ['Password atau Username Salah.'],
             ]);
         }
 
