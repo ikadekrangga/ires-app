@@ -11,11 +11,9 @@ use App\Models\ScrapingJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Throwable;
 use Carbon\Carbon;
 use Symfony\Component\HttpFoundation\Response;
-use App\Http\Requests\StoreInsightRequest;
-use GrahamCampbell\ResultType\Success;
+use App\Services\TokenService;
 
 class InternalApiController extends Controller{
     public function getPendingJob()
@@ -24,7 +22,8 @@ class InternalApiController extends Controller{
         DB::beginTransaction();
 
         $job = DB::table('scraping_jobs')
-            ->where('status', 'pending')
+            ->whereIn('status', ['pending', 'failed'])
+            ->where('next_retry_at', '<=', now())
             ->lockForUpdate()
             ->first();
 
@@ -44,9 +43,10 @@ class InternalApiController extends Controller{
 
     } catch (\Throwable $e) {
         DB::rollBack();
+        Log::error('getPendingJob error', ['error' => $e->getMessage()]);
 
         return response()->json([
-            'error' => $e->getMessage()
+            'error' => 'Internal server error'
         ], 500);
     }
 }
@@ -65,16 +65,16 @@ class InternalApiController extends Controller{
     public function markFailed(Request $request, $id){
         $job = ScrapingJob::findOrFail($id);
 
-        $newAttempt = $job->attempt_count+1;
+        $newAttempt = $job->attempt_count + 1;
 
-        $status = $newAttempt >=3
-            ? 'failed_non_retryable': 'failed_retryable';
+        $status = $newAttempt >= $job->max_attempts
+            ? 'permanent_fail' : 'failed';
 
         $job->update([
             'status' => $status,
-            'last_error' => $request->error,
-            'finished_at' => now(),
-            'attempt_count' => $job->attempt_count + 1
+            'error_reason' => $request->error,
+            'attempt_count' => $newAttempt,
+            'next_retry_at' => $status === 'failed' ? now()->addMinutes(10 * $newAttempt) : $job->next_retry_at,
         ]);
 
         return response()->json(['ok'=>true]);
@@ -94,28 +94,32 @@ class InternalApiController extends Controller{
 
     public function getAccount($id){
         
-            $account = Account::findOrFail($id);
+        $account = Account::with('activeCredential')->findOrFail($id);
 
-            return response()->json([
-                'id' =>$account->id,
-                'instagram_business_id' => $account->instagram_business_id,
-                "access_token" => $account->access_token,
-                'expires_at' => $account->expires_at,
-            ]);
+        if (!$account->activeCredential) {
+            return response()->json(['error' => 'No active token found'], 404);
+        }
+
+        return response()->json([
+            'id' => $account->id,
+            'instagram_business_id' => $account->ig_account_id,
+            'access_token' => $account->activeCredential->access_token,
+            'expires_at' => $account->activeCredential->expires_at,
+        ]);
     }
 
     public function jobStats(){
         return response()->json([
-            'pending' => ScrapingJob::where('status', ScrapingJob::STATUS_PENDING) -> count(),
-            'processing' => ScrapingJob::where('status', ScrapingJob::STATUS_PROCESSING)->count(),
-            'success' => ScrapingJob::where('status', ScrapingJob::STATUS_SUCCESS)-> count(),
-            'failed_retryable' => ScrapingJob::where('status', ScrapingJob::STATUS_FAILED_RETRYABLE)-> count(),
-            'failed_non_retryable' => ScrapingJob::where('status', ScrapingJob::STATUS_FAILED_NON_RETRYABLE)->count()
+            'pending' => ScrapingJob::where('status', 'pending')->count(),
+            'processing' => ScrapingJob::where('status', 'processing')->count(),
+            'success' => ScrapingJob::where('status', 'success')->count(),
+            'failed' => ScrapingJob::where('status', 'failed')->count(),
+            'permanent_fail' => ScrapingJob::where('status', 'permanent_fail')->count()
         ]);
     }
 
     public function health(){
-        $stuckJobs = ScrapingJob::where('status', ScrapingJob::STATUS_PROCESSING)
+        $stuckJobs = ScrapingJob::where('status', 'processing')
         ->where('started_at', '<', now()->subMinutes(30))
         ->count();
 
@@ -140,15 +144,17 @@ class InternalApiController extends Controller{
             ], 400);
         }
 
-        // 🔥 Mapping metric ke kolom DB
+        // 🔥 Memasukkan semua metric langsung ke jsonb
         $payload = [
             'account_id'     => $accountId,
             'since_date'     => $since,
             'until_date'     => $until,
-            'like'           => $data['like'] ?? 0,
-            'views'          => $data['views'] ?? 0,
-            'follows_and_unfollows' => $data['follows_and_unfollows'] ?? 0,
-            'reach'          => $data['reach'] ?? 0,
+            'metrics'        => json_encode([
+                'like'                  => $data['like'] ?? 0,
+                'views'                 => $data['views'] ?? 0,
+                'follows_and_unfollows' => $data['follows_and_unfollows'] ?? 0,
+                'reach'                 => $data['reach'] ?? 0,
+            ]),
         ];
 
         // 🔥 UPSERT (hindari duplicate since-until)
@@ -167,66 +173,46 @@ class InternalApiController extends Controller{
         ]);
 
     } catch (\Throwable $e) {
+        Log::error('storeInsight error', ['error' => $e->getMessage()]);
         return response()->json([
-            'error' => $e->getMessage()
+            'error' => 'Failed to store insight'
         ], 500);
     }
     }  
 
 
 
-    public function refreshToken($id)
+    public function refreshToken($id, TokenService $tokenService)
 {
-    try {
-        $account = Account::findOrFail($id);
+    $account = Account::findOrFail($id);
+    $activeCredential = $account->activeCredential;
 
-        if (!$account->access_token) {
-            throw new Exception("Access token kosong di DB");
-        }
-
-        $response = Http::get('https://graph.facebook.com/v24.0/oauth/access_token', [
-            'grant_type' => 'fb_exchange_token',
-            'client_id' => config('services.meta.client_id'),
-            'client_secret' => config('services.meta.client_secret'),
-            'fb_exchange_token' => $account->access_token,
-        ]);
-
-        // 🔥 LOG RAW RESPONSE
-        Log::info("META TOKEN RESPONSE", [
-            'status' => $response->status(),
-            'body' => $response->body()
-        ]);
-
-        if (!$response->ok()) {
-            throw new Exception("Meta API failed: " . $response->body());
-        }
-
-        $data = $response->json();
-
-        // 🔥 VALIDASI RESPONSE
-        if (!isset($data['access_token'])) {
-            throw new Exception("Meta response invalid: " . json_encode($data));
-        }
-
-        $account->update([
-            'access_token' => $data['access_token'],
-            'expires_at' => now()->addSeconds($data['expires_in'] ?? 0)
-        ]);
-
-        return response()->json([
-            'status' => 'success'
-        ]);
-
-    } catch (\Throwable $e) {
-
-        Log::error("REFRESH TOKEN ERROR", [
-            'account_id' => $id,
-            'error' => $e->getMessage()
-        ]);
-
-        return response()->json([
-            'error' => $e->getMessage()
-        ], 500);
+    if (!$activeCredential) {
+        return response()->json(['error' => 'No active token found'], 404);
     }
+
+    $success = $tokenService->refreshToken($activeCredential);
+
+    if ($success) {
+        return response()->json(['status' => 'success']);
+    }
+
+    return response()->json(['error' => 'Failed to refresh token'], 500);
 }
+
+
+public function updateAccountStatus(Request $request, $id, TokenService $tokenService)
+{
+    $request->validate(['status' => 'required|in:need_reauth,active,disconnected']);
+    $account = Account::findOrFail($id);
+
+    if ($request->status === 'need_reauth') {
+        $tokenService->markAccountAsNeedsReauth($account);
+    } else {
+        $account->update(['status' => $request->status]);
+    }
+
+    return response()->json(['message' => 'Status updated']);
+}
+
 } 

@@ -11,11 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('accounts', function (Blueprint $table){
-            $table->text('access_token')->nullable()->change();
-            $table->timestamp('token_expires_at')->nullable()->change();
-            $table->text('refresh_token')->nullable();
-        });
+        // Migration ini sudah tidak diperlukan karena access_token sudah
+        // dipindah ke tabel account_credentials pada arsitektur baru.
     } 
 
     /**

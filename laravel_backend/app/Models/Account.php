@@ -1,36 +1,42 @@
 <?php
+
 namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Account extends Model{
+class Account extends Model
+{
+    use HasFactory;
+
     protected $fillable = [
-        'account_name',
-        'instagram_business_id',
-        'facebook_page_id',
-        'access_token',
-        'token_expires_at',
-
+        'name',
+        'ig_account_id',
+        'fb_page_id',
+        'status',
     ];
 
-    protected $casts = [
-        'token_expires_at' => 'datetime',
-    ];
+    // Relasi untuk melihat semua history token
+    public function credentials()
+    {
+        return $this->hasMany(AccountCredential::class);
+    }
 
-    protected $hidden = [
-        'access_token'
-    ];
+    // Helper untuk mengambil SATU token yang masih valid saat ini (digunakan Worker)
+    public function activeCredential()
+    {
+        return $this->hasOne(AccountCredential::class)
+            ->where('is_valid', true)
+            ->latest('id'); 
+    }
 
-    public function scrapingJobs(){
+    public function jobs()
+    {
         return $this->hasMany(ScrapingJob::class);
     }
-    public function insights(){
+
+    public function insights()
+    {
         return $this->hasMany(WeeklyInsight::class);
     }
-
-    public function isTokenExpired(){
-        return $this -> token_expires_at
-            && $this->token_expires_at ->isPast();
-    }
 }
-
-

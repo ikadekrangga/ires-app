@@ -97,7 +97,8 @@ class JobController extends Controller
                 'pending' => ScrapingJob::where('status', 'pending')->count(),
                 'processing' => ScrapingJob::where('status', 'processing')->count(),
                 'success' => ScrapingJob::where('status', 'success')->count(),
-                'failed' => ScrapingJob::where('status', 'like', 'failed%')->count(),
+                'failed' => ScrapingJob::where('status', 'failed')->count(),
+                'permanent_fail' => ScrapingJob::where('status', 'permanent_fail')->count(),
             ]
         ]);
     }

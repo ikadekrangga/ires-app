@@ -214,5 +214,12 @@ class LaravelClient:
             f"/internal/accounts/{account_id}/refresh-token"
         )
 
+    def update_account_status(self, account_id, status):
+        return self._request(
+            "POST",
+            f"/internal/accounts/{account_id}/status",
+            json={"status": status}
+        )
+
     def close(self):
         self.client.close()

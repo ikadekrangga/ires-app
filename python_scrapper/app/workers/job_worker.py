@@ -94,21 +94,22 @@ def start_worker():
             })
 
         # -------------------------
-        # TOKEN EXPIRED (FIXED)
+        # TOKEN EXPIRED
         # -------------------------
         except TokenExpiredError as e:
-            print("TOKEN EXPIRED → REFRESHING")
+            print("TOKEN EXPIRED → ATTEMPTING REFRESH VIA LARAVEL")
 
             try:
                 laravel.refresh_token(account_id)
                 time.sleep(2)
-                continue  # 🔥 retry job tanpa fail
+                continue  # 🔥 Jika sukses, retry job langsung (akan diambil di putaran berikutnya)
             except Exception as refresh_error:
-                laravel.mark_failed(job_id, f"TOKEN_REFRESH_FAILED: {str(refresh_error)}")
-
+                # Jika gagal, Laravel (TokenService) otomatis menggagalkan job ini (permanent_fail) dan men-set akun jadi need_reauth.
+                # Worker HANYA perlu log error, JANGAN call mark_failed agar tidak menimpa status Laravel.
+                print("REFRESH FAILED → LARAVEL DISABLED THIS ACCOUNT")
                 log({
                     "job_id": job_id,
-                    "status": "token_refresh_failed",
+                    "status": "token_refresh_failed_and_disabled",
                     "error": str(refresh_error)
                 })
 

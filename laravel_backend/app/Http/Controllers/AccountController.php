@@ -11,10 +11,16 @@ class AccountController extends Controller
 {
     /**
      * 📌 GET /accounts
+     * Menampilkan semua akun untuk Dashboard Frontend
      */
     public function index()
     {
-        $accounts = Account::select('id', 'instagram_business_id', 'account_name')->get();
+        // Menggunakan kolom baru: name, ig_account_id, status, dan me-load status token aktif
+        $accounts = Account::select('id', 'ig_account_id', 'fb_page_id', 'name', 'status')
+            ->with(['activeCredential' => function ($query) {
+                $query->select('account_id', 'expires_at'); // Hanya tampilkan expires_at untuk keamanan
+            }])
+            ->get();
 
         return response()->json([
             'status' => 'success',
@@ -24,21 +30,23 @@ class AccountController extends Controller
 
     /**
      * 📌 POST /accounts
-     * create account + exchange token
+     * Create account + exchange short-lived token to long-lived token
      */
     public function store(Request $request)
     {
         $request->validate([
-            'instagram_business_id' => 'required|string',
-            'access_token' => 'required|string', // short-lived
+            'name' => 'required|string',
+            'instagram_business_id' => 'required|string', 
+            'fb_page_id' => 'nullable|string',
+            'access_token' => 'required|string', // short-lived token dari Meta Login
         ]);
 
         try {
-            // 🔥 exchange ke long-lived token
-            $response = Http::get('https://graph.facebook.com/v24.0/oauth/access_token', [
+            // 🔥 Exchange ke long-lived token
+            $response = Http::get('https://graph.facebook.com/v19.0/oauth/access_token', [
                 'grant_type' => 'fb_exchange_token',
-                'client_id' => config('services.meta.app_id'),
-                'client_secret' => config('services.meta.app_secret'),
+                'client_id' => config('services.meta.client_id'), 
+                'client_secret' => config('services.meta.client_secret'),
                 'fb_exchange_token' => $request->access_token,
             ]);
 
@@ -51,22 +59,31 @@ class AccountController extends Controller
 
             $data = $response->json();
 
+            // 1. Create Identity (Account)
             $account = Account::create([
-                'instagram_business_id' => $request->instagram_business_id,
+                'name' => $request->name,
+                'ig_account_id' => $request->instagram_business_id,
+                'fb_page_id' => $request->fb_page_id ?? '',
+                'status' => 'active'
+            ]);
+
+            // 2. Create Credential (Token)
+            $account->credentials()->create([
                 'access_token' => $data['access_token'],
-                'expires_at' => now()->addSeconds($data['expires_in']),
+                'expires_at' => isset($data['expires_in']) ? now()->addSeconds($data['expires_in']) : now()->addDays(60),
+                'is_valid' => true,
             ]);
 
             return response()->json([
                 'message' => 'Account created successfully',
-                'data' => $account
+                'data' => $account->load('activeCredential')
             ]);
 
         } catch (\Throwable $e) {
-            Log::error("Account store error", ['error' => $e->getMessage()]);
+            Log::error("Account store error", ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
 
             return response()->json([
-                'error' => $e->getMessage()
+                'error' => 'Gagal menyimpan akun. Silakan coba lagi.'
             ], 500);
         }
     }
@@ -76,8 +93,7 @@ class AccountController extends Controller
      */
     public function syncData()
     {
-        $accounts = Account::all();
-
+        $accounts = Account::where('status', 'active')->get();
         $results = [];
 
         foreach ($accounts as $account) {
@@ -93,29 +109,67 @@ class AccountController extends Controller
         ]);
     }
 
+    /**
+     * 📌 PUT /accounts/{id}
+     * Update akun (misal: reconnect token)
+     */
     public function update(Request $request, $id)
-{
-    $account = Account::findOrFail($id);
+    {
+        $request->validate([
+            'name' => 'nullable|string|max:255',
+            'instagram_business_id' => 'nullable|string|max:255',
+            'access_token' => 'nullable|string',
+        ]);
 
-    $account->update([
-        'account_name' => $request->account_name,
-        'access_token' => $request->access_token
-    ]);
+        $account = Account::findOrFail($id);
 
-    return response()->json($account);
-}
+        $account->update([
+            'name' => $request->name ?? $account->name,
+            'ig_account_id' => $request->instagram_business_id ?? $account->ig_account_id,
+        ]);
 
-    public function destroy($id){
+        // Jika user melakukan RE-AUTH (mengirim token baru)
+        if ($request->filled('access_token')) {
+            // Matikan semua token lama
+            $account->credentials()->update(['is_valid' => false]);
+            
+            // Simpan token baru
+            $account->credentials()->create([
+                'access_token' => $request->access_token,
+                'expires_at' => now()->addDays(60), // Asumsi token yang dikirim sudah long-lived
+                'is_valid' => true,
+            ]);
+
+            // Reset status kembali aktif
+            $account->update(['status' => 'active']);
+        }
+
+        return response()->json($account->load('activeCredential'));
+    }
+
+    /**
+     * 📌 DELETE /accounts/{id}
+     */
+    public function destroy($id)
+    {
+        // Karena kita set onDelete Cascade di migration, 
+        // hapus Account akan otomatis menghapus Credential, Job, dan Insight
         Account::findOrFail($id)->delete();
 
         return response()->json(['status' => 'deleted']);
     }
 
-    public function create(Request $request){
+    /**
+     * Endpoint alternatif yang sepertinya duplikat dengan store()
+     * Disarankan menggunakan store() untuk flow utama.
+     */
+    public function create(Request $request)
+    {
         $account = Account::create([
-            'account_name' => $request->account_name,
-            'instagram_business_id' => $request->instagram_business_id,
-
+            'name' => $request->account_name,
+            'ig_account_id' => $request->instagram_business_id,
+            'fb_page_id' => '',
+            'status' => 'active'
         ]);
 
         return response()->json($account);

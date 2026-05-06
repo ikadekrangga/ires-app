@@ -15,7 +15,7 @@ const form = ref({
   views: 0,
   likes: 0,
   comments: 0,
-  follows: 0,
+  follows_and_unfollows: 0,
 });
 
 const fetchAccounts = async () => {
@@ -33,7 +33,6 @@ const submit = async () => {
     loading.value = true;
     await createManualInsight(form.value);
 
-    // Gunakan feedback yang lebih baik di masa depan (seperti toast)
     alert("✨ Insight Saved Successfully!");
 
     // Reset form
@@ -45,7 +44,7 @@ const submit = async () => {
       views: 0,
       likes: 0,
       comments: 0,
-      follows: 0,
+      follows_and_unfollows: 0,
     };
   } catch (err) {
     alert(err.response?.data?.message || "Failed to save insights!");
@@ -59,109 +58,75 @@ onMounted(fetchAccounts);
 
 <template>
   <MainLayout>
-    <div class="max-w-4xl mx-auto py-8 px-4">
-      <header class="mb-8">
-        <h1 class="text-3xl font-extrabold text-gray-900">Manual Insights</h1>
-        <p class="text-gray-500 mt-2">
-          Input performa data Instagram secara manual untuk laporan periodik.
-        </p>
-      </header>
-
-      <div
-        class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
-      >
-        <!-- Form Section -->
-        <div class="p-8">
-          <div class="space-y-6">
-            <!-- Account Selection -->
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2"
-                >Target Account</label
-              >
-              <select
-                v-model="form.account_id"
-                class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-              >
-                <option value="">Choose an Instagram Account</option>
-                <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
-                  {{ acc.account_name }}
-                </option>
-              </select>
-            </div>
-
-            <!-- Date Range -->
-            <div
-              class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg"
-            >
-              <div>
-                <label class="block text-sm font-medium text-gray-600 mb-1"
-                  >Since</label
-                >
-                <input
-                  type="date"
-                  v-model="form.since"
-                  class="w-full border-gray-300 rounded-md p-2 border focus:ring-2 focus:ring-indigo-200"
-                />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-600 mb-1"
-                  >Until</label
-                >
-                <input
-                  type="date"
-                  v-model="form.until"
-                  class="w-full border-gray-300 rounded-md p-2 border focus:ring-2 focus:ring-indigo-200"
-                />
-              </div>
-            </div>
-
-            <!-- Metrics Grid -->
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-4"
-                >Performance Metrics</label
-              >
-              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                <div
-                  v-for="metric in [
-                    'reach',
-                    'views',
-                    'likes',
-                    'comments',
-                    'follows',
-                  ]"
-                  :key="metric"
-                  class="relative"
-                >
-                  <label
-                    class="block text-xs font-bold uppercase text-gray-400 mb-1 ml-1"
-                    >{{ metric }}</label
-                  >
-                  <input
-                    v-model="form[metric]"
-                    type="number"
-                    min="0"
-                    :placeholder="
-                      metric.charAt(0).toUpperCase() + metric.slice(1)
-                    "
-                    class="w-full border-gray-300 rounded-lg p-3 border focus:bg-white bg-gray-50 transition-all outline-none focus:ring-2 focus:ring-green-400"
-                  />
-                </div>
-              </div>
-            </div>
+    <div class="min-h-screen bg-indigo-50 p-4 md:p-8">
+      <div class="max-w-7xl mx-auto">
+        <!-- Breadcrumb Navbar -->
+        <div class="bg-white rounded-xl px-6 py-4 flex justify-between items-center mb-8 shadow-sm border border-gray-100">
+          <h2 class="text-indigo-900 text-lg font-bold tracking-wide">Manual Insight</h2>
+          <div class="text-sm font-semibold">
+            <router-link to="/" class="text-[#7C3AED] hover:underline">Home</router-link>
+            <span class="text-gray-400 mx-2">-</span>
+            <span class="text-gray-400">Manual Insight</span>
           </div>
         </div>
 
-        <!-- Footer / Action -->
-        <div class="bg-gray-50 px-8 py-4 flex items-center justify-end">
-          <button
-            @click="submit"
-            :disabled="loading || !isFormValid"
-            class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white transition-all bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span v-if="loading" class="mr-2 animate-spin">🌀</span>
-            {{ loading ? "Processing..." : "Save Insights" }}
-          </button>
+        <!-- Header -->
+        <header class="mb-8 mt-3">
+          <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Manual Insights</h1>
+          <p class="text-gray-500 mt-1">Input performa data Instagram secara manual untuk laporan periodik.</p>
+        </header>
+
+        <!-- Form Section -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8 flex flex-col gap-6">
+          <div class="flex items-center mb-2 border-b border-gray-100 pb-4">
+            <h3 class="font-bold text-gray-900 text-lg">Input New Data</h3>
+          </div>
+          
+          <!-- Basic Info -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">TARGET ACCOUNT</label>
+              <select v-model="form.account_id" class="w-full appearance-none border-gray-200 rounded-xl p-3 border bg-slate-50 outline-none transition-all text-sm">
+                <option value="">Pilih Akun</option>
+                <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
+                  {{ acc.name }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">DARI</label>
+              <input type="date" v-model="form.since" class="w-full border-gray-200 rounded-xl p-3 border bg-slate-50 outline-none transition-all text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">SAMPAI</label>
+              <input type="date" v-model="form.until" class="w-full border-gray-200 rounded-xl p-3 border bg-slate-50 outline-none transition-all text-sm" />
+            </div>
+          </div>
+
+          <!-- Metrics Grid -->
+          <div class="mt-4">
+            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">PERFORMANCE METRICS</label>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div v-for="metric in ['reach', 'views', 'likes', 'comments', 'follows_and_unfollows']" :key="metric">
+                <label class="block text-[10px] font-bold uppercase text-gray-400 mb-2">{{ metric.replace(/_/g, ' ') }}</label>
+                <input v-model="form[metric]" type="number" min="0" :placeholder="metric" class="w-full border-gray-200 rounded-xl p-3 border bg-slate-50 outline-none transition-all text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer / Action -->
+          <div class="flex justify-end mt-4 pt-6 border-t border-gray-100">
+            <button
+              @click="submit"
+              :disabled="loading || !isFormValid"
+              class="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-semibold px-8 py-3 rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center justify-center h-[46px]"
+            >
+              <span v-if="loading" class="animate-spin mr-2">🌀</span>
+              {{ loading ? "Processing..." : "Save Insights" }}
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   </MainLayout>

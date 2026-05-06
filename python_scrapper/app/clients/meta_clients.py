@@ -21,6 +21,7 @@ class MetaClient:
 
         params = {
             "metric": "reach,views,likes,comments,follows_and_unfollows",
+            "metric_type": "total_value",
             "period": "day",
             "since": since.isoformat(),
             "until": today.isoformat(),

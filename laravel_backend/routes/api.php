@@ -5,7 +5,7 @@ use App\Http\Controllers\Api\InternalApiController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\InsightController;
-use PHPUnit\Util\PHP\Job;
+use App\Http\Controllers\AuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,6 +45,7 @@ Route::prefix('internal')
         Route::post('/insights', [InternalApiController::class, 'storeInsight']);
 
         Route::post('/accounts/{id}/refresh-token', [InternalApiController::class, 'refreshToken']);
+        Route::post('/accounts/{id}/status', [InternalApiController::class, 'updateAccountStatus']);
     });
 
 /*
@@ -53,12 +54,22 @@ Route::prefix('internal')
 |--------------------------------------------------------------------------
 */
 
-Route::get('/jobs', [JobController::class, 'listJobs']);
-Route::post('/jobs', [JobController::class, 'createJob']);
-Route::get('/jobs/{id}', [JobController::class, 'show']);
-Route::get('/jobs/stats', [JobController::class, 'stats']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 
-Route::get('/dashboard', [InsightController::class, 'dashboard']);
-Route::post('/insights/manual', [InsightController::class, 'storeManual']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
 
-Route::get('/accounts', [AccountController::class, 'index']);
+    Route::get('/jobs', [JobController::class, 'listJobs']);
+    Route::post('/jobs', [JobController::class, 'createJob']);
+    Route::get('/jobs/{id}', [JobController::class, 'show']);
+    Route::get('/jobs/stats', [JobController::class, 'stats']);
+
+    Route::get('/dashboard', [InsightController::class, 'dashboard']);
+    Route::post('/insights/manual', [InsightController::class, 'storeManual']);
+
+    Route::get('/accounts', [AccountController::class, 'index']);
+    Route::post('/accounts', [AccountController::class, 'store']);
+    Route::put('/accounts/{id}', [AccountController::class, 'update']);
+    Route::delete('/accounts/{id}', [AccountController::class, 'destroy']);
+});
